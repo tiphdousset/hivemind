@@ -4,7 +4,6 @@ import java.io.FileNotFoundException
 
 import org.http4s.dsl.io._
 import org.http4s._
-import org.http4s.circe._
 import org.http4s.server.blaze._
 import fs2.{Stream, StreamApp}
 import fs2.StreamApp.ExitCode
@@ -28,13 +27,7 @@ object Backend extends StreamApp[IO] {
 
     args match {
       case List(path) if Files.exists(Paths.get(path))=>
-        val bestRatedReviewService = HttpService[IO] {
-          case req@POST -> Root / "amazon" / "best-rated" =>
-            req.decodeWith(queryDecoder, strict=true){
-              case Right(queryParams) => Ok(encodeResponse(filterReviews(path, queryParams)))
-              case Left(_) => BadRequest("")
-            }
-        }
+        val bestRatedReviewService = httpService(path) 
 
         BlazeBuilder[IO]
           .bindHttp(8080, "localhost")
@@ -45,6 +38,16 @@ object Backend extends StreamApp[IO] {
     }
   }
 
+  def httpService(path: String) = {
+    HttpService[IO] {
+      case req@POST -> Root / "amazon" / "best-rated" =>
+        req.decodeWith(queryDecoder, strict=true){
+          case Right(queryParams) => Ok(encodeResponse(filterReviews(path, queryParams)))
+          case Left(_) => BadRequest("")
+        }
+    }
+  }
+
   //Main method to get the best rated reviews according to the criteria of the POST request
   def filterReviews(fileName: String, queryParams: QueryParameters) : Iterable[BestRatedArticle] = {
     val listOfReviews = filterPerAsin(createListOfReviews(fileName))
@@ -52,11 +55,15 @@ object Backend extends StreamApp[IO] {
     val endDate_epoch = getEpochTime(queryParams.end)
 
     //Filter by min_number_reviews and date range
-    val filteredList = listOfReviews.collect{
+    val filteredList = listOfReviews.flatMap{
         case (key, reviews) if reviews.size >= queryParams.min_number_reviews =>
           val filteredReviews = reviews.filter(review => startDate_epoch <= review.unixReviewTime
             && review.unixReviewTime <= endDate_epoch)
-          (key, filteredReviews)
+          if (filteredReviews.isEmpty)
+            None
+          else
+            Some((key, filteredReviews))
+        case _ => None
       }
 
     val bestRatedProducts = calculateRatingOfProducts(filteredList)

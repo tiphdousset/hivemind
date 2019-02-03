@@ -4,7 +4,7 @@ import Codecs._
 
 class DecodeQuerySpec extends FunSuite {
 
-  test("decode happy case 1"){
+  test("Happy case 1"){
     val q = decodeQuery("""{"start": "15.10.2011", "end": "01.08.2013", "limit": 2, "min_number_reviews": 2 }""")
     assert(q.isRight, q.left)
     val query = q.right.get
@@ -14,12 +14,12 @@ class DecodeQuerySpec extends FunSuite {
     assert(query.min_number_reviews == 2)
   }
 
-  test("decode missing start field"){
+  test("Missing start field"){
     val q = decodeQuery("""{"end": "01.08.2013", "limit": 2, "min_number_reviews": 2 }""")
     assert(q.isLeft)
   }
 
-  test("decode broken Json"){
+  test("Broken Json"){
     val q = decodeQuery("""{"start": 15.10.2011", "end": "01.08.2013", "limit": 2, "min_number_reviews": 2 }""")
     assert(q.isLeft)
   }
