@@ -1,15 +1,14 @@
+import io.circe._
+import io.circe.literal._
+import org.http4s.client.dsl.io._
 import org.http4s.dsl.io._
 import org.scalatest._
 import review._
-import org.http4s.client.dsl.io._
-import io.circe._
-import io.circe.literal._
-import org.http4s.circe._
 
-class HttpServiceSpec extends FunSuite{
+class HttpServiceSpec extends FunSuite {
 
-  test("Example"){
-   val service = Backend.httpService("video_game_reviews_example.json")
+  test("Example") {
+    val service = Backend.bestRatedReviewHttpService("video_game_reviews_example.json")
     val post = POST(
       uri("/amazon/best-rated"),
       """{"start": "15.10.2011","end": "01.08.2013","limit": 2,"min_number_reviews": 2}"""
