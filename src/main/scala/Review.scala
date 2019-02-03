@@ -1,8 +1,7 @@
+package review
+import Codecs._
 import java.io.FileNotFoundException
 
-import io.circe.generic.auto._
-import io.circe.parser._
-import io.circe.syntax._
 import org.http4s.dsl.io._
 import org.http4s._
 import org.http4s.circe._
@@ -19,9 +18,9 @@ import scala.io._
 import java.nio.file.{Files, Paths}
 
 //The class Review describes only the needed fields of a Json Review for the exercice
-case class Review(reviewerID: String, asin: String, reviewerName: Option[String], overall: Double, unixReviewTime: Long, reviewTime: String)
+case class Review(reviewerID: String, asin: String, overall: Double, unixReviewTime: Long)
 case class QueryParameters(start: String, end: String, limit: Int, min_number_reviews: Int)
-case class BestRatedArticles(asin: String, average_rating: Double)
+case class BestRatedArticle(asin: String, average_rating: Double)
 
 object Backend extends StreamApp[IO] {
 
@@ -31,8 +30,9 @@ object Backend extends StreamApp[IO] {
       case List(path) if Files.exists(Paths.get(path))=>
         val bestRatedReviewService = HttpService[IO] {
           case req@POST -> Root / "amazon" / "best-rated" =>
-            req.decodeJson[QueryParameters] flatMap{ queryParams =>
-              Ok(filterReviews(path, queryParams).asJson)
+            req.decodeWith(queryDecoder, strict=true){
+              case Right(queryParams) => Ok(encodeResponse(filterReviews(path, queryParams)))
+              case Left(_) => BadRequest("")
             }
         }
 
@@ -46,7 +46,7 @@ object Backend extends StreamApp[IO] {
   }
 
   //Main method to get the best rated reviews according to the criteria of the POST request
-  def filterReviews(fileName: String, queryParams: QueryParameters) : Iterable[BestRatedArticles] = {
+  def filterReviews(fileName: String, queryParams: QueryParameters) : Iterable[BestRatedArticle] = {
     val listOfReviews = filterPerAsin(createListOfReviews(fileName))
     val startDate_epoch = getEpochTime(queryParams.start)
     val endDate_epoch = getEpochTime(queryParams.end)
@@ -72,7 +72,7 @@ object Backend extends StreamApp[IO] {
   //Read the file that contains the reviews and store the content in an iterator
   def createListOfReviews(fileName: String): Iterator[Review] = {
     Source.fromFile(fileName).getLines().map {
-      line => decode[Review](line)
+      line => decodeReview(line)
     }.collect { //we do not need the lines of the file that do not match the type Review
       case Right(review) => review
     }
@@ -86,8 +86,8 @@ object Backend extends StreamApp[IO] {
   }
 
   //Create a list of PostResponse
-  def calculateRatingOfProducts(filteredList : Map[String, Iterable[Review]]): Iterable[BestRatedArticles] = {
-    filteredList.map{ case (asin, value) => BestRatedArticles(asin, calculateRate(value)) }
+  def calculateRatingOfProducts(filteredList : Map[String, Iterable[Review]]): Iterable[BestRatedArticle] = {
+    filteredList.map{ case (asin, value) => BestRatedArticle(asin, calculateRate(value)) }
   }
 
   //Calculate the rating of an article according to some of the reviews
